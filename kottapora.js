@@ -3,7 +3,7 @@
 var myGamePiece, myObstacles, myScore, myHealth;
 
 // Game logic varialble declaration
-var i, height, minGap, maxGap, obstacleTypes, numberOfLanes, x, y, a, b, randomObstacle, wait=1;
+var i, height, minGap, maxGap, obstacleTypes, numberOfLanes, x, y, a, b, randomObstacle, wait;
 
 function init() {
     // Types of obstacles
@@ -22,6 +22,8 @@ function init() {
         {src: "cpu-1.png", caption: "cpu-1"},
         {src: "cpu-2.png", caption: "cpu-2"}
     ];
+
+    wait = false;
 }
   
 init();
@@ -31,6 +33,7 @@ function startGame() {
     cpu = new component(200, 200, "cpu.png", 180, 70, "image", "cpu");
     playerHealth = new component("15px", "Consolas", "blue", 100, 20, "text", "playerHealth");
     cpuHealth = new component("15px", "Consolas", "red", 300, 20, "text", "cpuHealth");
+    ouch = new component("15px", "Consolas", "red", 100, 120, "text", "ouch"); //330,120 / 100,120
     fightbar = new component(400, 100, "fightbar.png", 25, 120, "image", "fightbar");
 
     myGameArea.start();
@@ -97,40 +100,12 @@ function component(width, height, color, x, y, type, caption) {
         this.x += this.speedX;
         this.y += this.speedY;
     }
-    this.crashWith = function(otherobj) {
-
-        var myleft = this.x;
-        var myright = this.x + (this.width);
-        var mytop = this.y;
-        var mybottom = this.y + (this.height);
-        var otherleft = otherobj.x;
-        var otherright = otherobj.x + (otherobj.width);
-        var othertop = otherobj.y;
-        var otherbottom = otherobj.y + (otherobj.height);
-        var crash = true;        
-
-        if ((mybottom > othertop) ||
-            (mytop < otherbottom) ||
-            (myright > otherleft) ||
-            (myleft < otherright)) {
-            crash = false;
-            /* console.log("1" + mybottom < othertop);
-            console.log("2" + mytop > otherbottom);
-            console.log("3" + myright < otherleft);
-            console.log("4" + myleft > otherright); */
-        }
-        /* console.log("1" + mybottom < othertop);
-        console.log("2" + mytop > otherbottom);
-        console.log("3" + myright < otherleft);
-        console.log("4" + myleft > otherright); */
-        return crash;
-        
-    },
     this.crashedCpu = function(){
         var crash = false;
         if (this.caption == players[2].caption 
             && cpu.caption == cpus[0].caption) {
                 crash = true;
+                console.log("Player crashed cpu");
         }
         return crash;
     },
@@ -146,33 +121,15 @@ function component(width, height, color, x, y, type, caption) {
 
 function updateGameArea() {
 
-    /* for (i = 0; i < myObstacles.length; i += 1) {
-        if (bar.crashWith(myObstacles[i])) {
-            for(j=0; j<obstacleTypes.length; j++){
-                if(myObstacles[i].caption == obstacleTypes[j].caption){
-                    console.log("Obstacle is: " + obstacleTypes[j].caption); 
-                    myGameArea.score += 1;
-                }
-            }
-        }
-    } */
-   /*  if (player.crashWith(cpu)){
-        console.log("players shot");
+    if (myGameArea.cpuHealth == -10){
+        myGameArea.stop();
+        return;
     }
-    if(cpu.crashWith(player)){
-        console.log("cpus shot");
-    } */
 
-    /* if (myGameArea.frameNo == 1){
-        console.log("myleft: " + player.x);
-        console.log("myright: "+ player.x + (player.width));
-        console.log("mytop: " + player.y);
-        console.log("mybottom: "+ player.y + (player.height));
-        console.log("otherleft: " + cpu.x);
-        console.log("otherright: "+ cpu.x + (cpu.width));
-        console.log("othertop: " + cpu.y);
-        console.log("otherbottom: "+ cpu.y + (cpu.height));
-    } */
+    if(myGameArea.playerHealth == -10){
+        myGameArea.stop();
+        return;
+    }
 
     if (player.caption == players[2].caption 
         && cpus.caption == cpus[0].caption) {
@@ -182,6 +139,7 @@ function updateGameArea() {
     myGameArea.clear();
     myGameArea.frameNo += 1;
     
+    ouch.update();
     fightbar.update();
     player.update();
     cpu.update();
@@ -191,7 +149,13 @@ function updateGameArea() {
     cpuHealth.update();
 
     if (myGameArea.frameNo == 1 || everyinterval(50)) {
-        
+        if (Math.random() >= 0.8){
+            cpuEscape();
+            wait = !wait;
+        }else{
+            cpuHitOrGotShot('HIT');
+            wait = !wait;
+        }
     }
     
 }
@@ -229,20 +193,20 @@ function play() {
     myGameArea.interval = setInterval(updateGameArea, 20);
 }
 
-function hitCpuOrShotPlayer(action) {
+function playerHitOrGotShot(action) {
     if (action == "HIT"){
         a = 1;b = 2;
     }else if(action == "SHOT"){
-        a = 3;b = 4;
+        a = 3;b = 4;showOuch(true, 'PLAYER');
     }
     
     playerAction(a);
 
     setTimeout(function(){ 
         playerAction(b);
-        if (action == "HIT" && player.crashedCpu) {
-                console.log("Players shot");
-                hitPlayerOrShotCpu('SHOT');
+        if (action == "HIT" && player.crashedCpu()) {
+                myGameArea.cpuHealth -= 10;
+                cpuHitOrGotShot('SHOT');
         }
      }, 50);
 
@@ -252,20 +216,26 @@ function hitCpuOrShotPlayer(action) {
 
     setTimeout(function(){ 
         playerAction(0);
+        showOuch(false, 'PLAYER');
     }, 150);
 }
 
-function hitPlayerOrShotCpu(action) {
+function cpuHitOrGotShot(action) {
     if (action == "HIT"){
         a = 1;b = 2;
     }else if(action == "SHOT"){
-        a = 3;b = 4;
+        a = 3;b = 4;showOuch(true, 'CPU');
     }
     
     cpuAction(a);
 
     setTimeout(function(){ 
         cpuAction(b);
+        if (action == "HIT" && cpu.crashedPlayer()) {
+            console.log("Cpu's shot");
+            myGameArea.playerHealth -= 10;
+            playerHitOrGotShot('SHOT');
+        }
      }, 50);
 
     setTimeout(function(){ 
@@ -274,6 +244,7 @@ function hitPlayerOrShotCpu(action) {
 
     setTimeout(function(){ 
         cpuAction(0);
+        showOuch(false, 'CPU');
     }, 150);
 }
 
@@ -282,7 +253,7 @@ function playerEscape() {
 
     setTimeout(function(){ 
         playerAction(0);
-     }, 200);
+     }, 600);
 }
 
 function cpuEscape() {
@@ -290,7 +261,7 @@ function cpuEscape() {
 
     setTimeout(function(){ 
         cpuAction(0);
-     }, 200);
+     }, 600);
 }
 
 function playerAction(index){
@@ -302,3 +273,46 @@ function cpuAction(index){
     cpu.image.src = cpus[index].src;
     cpu.caption = cpus[index].caption;
 }
+
+function showOuch(show, who){
+    if(show){
+        ouch.text="Ouch#!$@";
+        if (who == 'CPU'){
+            ouch.x=330;
+            ouch.y=120;
+        }else if(who == 'PLAYER'){
+            ouch.x=100;
+            ouch.y=120;
+        }
+    }else{
+        ouch.text="";
+    }
+}
+
+function hitButtonClicked(){
+    var hit = document.getElementById("hit");
+    hit.disabled=true;
+    playerHitOrGotShot('HIT');
+    setTimeout(function(){ 
+        hit.disabled = false;
+    }, 800);
+}
+
+function escapeButtonClicked(){
+    var escape = document.getElementById("escape");
+    escape.disabled = true;
+    playerEscape();
+    setTimeout(function(){ 
+        escape.disabled = false;
+    }, 800);
+}
+
+function shotButtonClicked() {
+    var shot = document.getElementById("escape");
+    shot.disabled = true;
+    playerHitOrGotShot('SHOT');
+    setTimeout(function(){ 
+        shot.disabled = false;
+    }, 800);
+}
+
